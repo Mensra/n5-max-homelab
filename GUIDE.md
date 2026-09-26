@@ -15,13 +15,13 @@ Addresses are written as `<host-ip>`, `<media-lxc-ip>` and so on. Use your own.
 | Part | In this build | Why it matters |
 |---|---|---|
 | CPU/GPU | AMD Ryzen AI MAX+ 395 with Radeon 8060S (RDNA 3.5, `gfx1151`) + an NPU | One chip does everything; the GPU has no memory of its own |
-| Memory | 128 GB LPDDR5X, soldered (Linux sees ~124 GiB) | Shared by the OS, every container, **and** the GPU |
+| Memory | 128 GB LPDDR5X at 8533 MT/s (8 × 16 GB, per dmidecode), soldered (Linux sees ~124 GiB) | Shared by the OS, every container, **and** the GPU |
 | GPU memory | 1 GiB fixed carve-out ("VRAM") + a large dynamic pool ("GTT") taken from system RAM | See section 5 -- this is the single most important fact about this platform |
 | Boot drive | 128 GB NVMe | Keep the host OS small; never let data land on it |
 | Swap drive (added) | 512 GB NVMe (Lexar NM790, TLC, DRAM-less) in the one PCIe 4.0 x4 M.2 slot | Swap off ZFS; see "M.2 bay" below |
 | Data drives | 5 × 14 TB SATA (Seagate Exos class) | ZFS raidz2 (any 2 drives can fail) |
 | Backup drive | 48 TB USB enclosure | Single-disk ZFS pool for the backup server; not redundant by itself |
-| Network | 10 GbE + 2.5 GbE | Bonded active-backup: the 10 GbE carries traffic, 2.5 GbE is failover |
+| Network | 2 × 10 GbE (Realtek RTL8127) | Bonded active-backup. Ours has one port on a 2.5 GbE switch port, used as the failover link |
 | Fan/sensor chip | ITE IT5571 embedded controller | No in-kernel driver; see section 7 |
 
 **M.2 bay (under the fan bracket, found 2026-09-24):** the M.2 connectors sit under a
