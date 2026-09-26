@@ -19,7 +19,7 @@ services:
     # 64GB+ minimum, 128GB for comfortably smooth -- 65g was right at that
     # bare floor, not real margin. 75g leaves genuine headroom above both
     # our measured loading peak and the community-reported full-pipeline
-    # need, while staying well within LXC 102's 88GB cap. See BUILD_LOG.md.
+    # need, while staying well within LXC 102's 88GB cap.
     mem_limit: 75g
     memswap_limit: 83g   # 75g RAM + 8g swap headroom on the SSD (2026-09-24): slow down at the cap instead of OOM-kill
     # --disable-mmap added 2026-09-25: without it the model files stay in page cache AND get copied to GTT (same RAM on this APU) -- ~2x footprint; every Strix Halo FLUX.2 guide requires it.
@@ -36,8 +36,8 @@ services:
     volumes:
       - /opt/appdata/comfyui/models:/app/ComfyUI/models
       - /opt/appdata/comfyui/output:/app/ComfyUI/output
-      # AI images -> photo share "AI generated images" (LXC 102 mp0), prefix AIGEN so Immich excludes them (**/*AIGEN*)
-      - /mnt/ai-images:/app/ComfyUI/output/AIGEN
+      # optional: a share folder for finished images (bind-mounted into the LXC first)
+      # - /mnt/<images-share>:/app/ComfyUI/output/<subfolder>
       - /opt/appdata/comfyui/user:/app/ComfyUI/user
       # uploaded reference photos + blank_ref.png (placeholder for one-photo edits) persist across recreates (2026-09-25)
       - /opt/appdata/comfyui/input:/app/ComfyUI/input

@@ -209,7 +209,7 @@
  "21": {
   "class_type": "SaveImage",
   "inputs": {
-   "filename_prefix": "AIGEN/AIGEN_edit_%year%-%month%-%day%",
+   "filename_prefix": "flux2_edit_%year%-%month%-%day%",
    "images": [
     "20",
     0

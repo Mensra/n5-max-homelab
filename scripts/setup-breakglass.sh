@@ -5,8 +5,8 @@
 # real login as the break-glass user in every app and prints only OK/FAIL (never a password).
 # Portainer: with OAuth enabled only the INITIAL admin (id 1) may log in locally, so the script
 # renames that account instead of adding a new one.
-# Tested 2026-09-26 against Jellyfin 10.11.11, Immich 3.2, Open WebUI 0.11.4, Grafana (TeslaMate
-# 4.2 image), Homarr 1.77, Portainer CE 2.45. Proxmox VE / PBS were deliberately left on root@pam.
+# Tested 2026-09-26 against Jellyfin 10.11.11, Immich 3.2, Open WebUI 0.11.4, Grafana (TeslaMate's
+# bundled image), Homarr 1.77, Portainer CE 2.45. Proxmox VE / PBS were deliberately left on root@pam.
 #   sudo bash setup-breakglass.sh
 set -u
 exec python3 - "$@" <<'PY'
@@ -15,12 +15,14 @@ import re, json, ssl, sqlite3, urllib.request, urllib.parse, http.cookiejar
 # ---- EDIT THESE for your setup ------------------------------------------------------------
 MEDIA, MEDIA_TLS, AI = 'http://<media-lxc-ip>', 'https://<media-lxc-ip>', 'http://<ai-lxc-ip>'
 BREAKGLASS_USER, BREAKGLASS_EMAIL = '<breakglass-user>', '<breakglass-user>@<local-domain>'   # keep the username private
+JELLYFIN_ADMIN = '<jellyfin-local-admin>'
 IMMICH_ADMIN_EMAIL, OPENWEBUI_ADMIN_EMAIL, HOMARR_ADMIN = '<immich-local-admin-email>', '<openwebui-local-admin-email>', '<homarr-local-admin>'
 HOMARR_DB = '<path-on-host-to>/homarr/appdata/db/db.sqlite'
-# Secrets come from one root-only file of lines "{{NAME}} = value    <- comment" (the build keeps every
-# password in a single index); names used: PW_BREAKGLASS, PW_JELLYFIN_LOCAL, PW_IMMICH_LOCAL,
-# PW_OPENWEBUI_GMAIL, PW_MASTER (Grafana admin + Homarr admin here), PW_PORTAINER_ADMIN.
-SECRETS_FILE = '/root/CREDENTIALS.txt'
+# Secrets come from ONE root-only file of lines "{{NAME}} = value    <- comment" (keep every password
+# in a single place). Names this script reads -- rename to match your own file:
+#   PW_BREAKGLASS, PW_JELLYFIN_LOCAL, PW_IMMICH_LOCAL, PW_OPENWEBUI_LOCAL, PW_GRAFANA_ADMIN,
+#   PW_HOMARR_ADMIN, PW_PORTAINER_ADMIN (only needed for the first run, before the rename)
+SECRETS_FILE = '<path-to-your-root-only-secrets-file>'
 # -------------------------------------------------------------------------------------------
 IDX = dict(re.findall(r'^\{\{([A-Z_]+)\}\} +=\s*(.+?)    <- ', open(SECRETS_FILE).read(), re.M))
 PW = IDX['PW_BREAKGLASS']
@@ -66,7 +68,7 @@ def step(app, fn):
 def jellyfin():
     J = MEDIA + ':8096'
     base = 'MediaBrowser Client="breakglass-setup", Device="n5", DeviceId="breakglass-setup", Version="1"'
-    c, b = call(J + '/Users/AuthenticateByName', {'Username': 'jf_local_admin', 'Pw': IDX['PW_JELLYFIN_LOCAL']}, {'Authorization': base})
+    c, b = call(J + '/Users/AuthenticateByName', {'Username': JELLYFIN_ADMIN, 'Pw': IDX['PW_JELLYFIN_LOCAL']}, {'Authorization': base})
     if c != 200: return result('Jellyfin', False, f'admin login failed ({c})')
     H = {'Authorization': base + f', Token="{b["AccessToken"]}"'}
     c, users = call(J + '/Users', headers=H)
@@ -108,7 +110,7 @@ def openwebui():
     c, b = call(O + '/auths/signin', {'email': EMAIL, 'password': PW})
     if c == 200 and b.get('role') == 'admin':
         return result('Open WebUI', True, f'login as {EMAIL}: 200, role=admin (already existed)')
-    c, a = call(O + '/auths/signin', {'email': OPENWEBUI_ADMIN_EMAIL, 'password': IDX['PW_OPENWEBUI_GMAIL']})
+    c, a = call(O + '/auths/signin', {'email': OPENWEBUI_ADMIN_EMAIL, 'password': IDX['PW_OPENWEBUI_LOCAL']})
     if c != 200: return result('Open WebUI', False, f'admin login failed ({c})')
     H = {'Authorization': 'Bearer ' + a['token']}
     c, r = call(O + '/auths/add', {'name': USER, 'email': EMAIL, 'password': PW, 'role': 'admin'}, H)
@@ -122,12 +124,12 @@ def openwebui():
     c, b = call(O + '/auths/signin', {'email': EMAIL, 'password': PW})
     result('Open WebUI', c == 200 and b.get('role') == 'admin', f'login as {EMAIL}: {c}, role={b.get("role") if isinstance(b, dict) else None}')
 
-# ---------------------------------------------------------------- Grafana (TeslaMate)
+# ---------------------------------------------------------------- Grafana
 def grafana():
     G = MEDIA + ':3002'
     jar = http.cookiejar.CookieJar()
     O = {'Origin': G}
-    c, _ = call(G + '/login', {'user': 'admin', 'password': IDX['PW_MASTER']}, O, jar=jar)
+    c, _ = call(G + '/login', {'user': 'admin', 'password': IDX['PW_GRAFANA_ADMIN']}, O, jar=jar)
     if c != 200: return result('Grafana', False, f'admin login failed ({c})')
     c, u = call(G + f'/api/users/lookup?loginOrEmail={USER}', headers=O, jar=jar)
     if c == 404:
@@ -158,7 +160,7 @@ def homarr():
         call(H + '/api/auth/callback/credentials', {'csrfToken': b['csrfToken'], 'name': name, 'password': pw, 'json': 'true'}, form=True, jar=jar, follow=False)
         return jar, any('session-token' in ck.name for ck in jar)
     if not exists:
-        jar, ok = login(HOMARR_ADMIN, IDX['PW_MASTER'])
+        jar, ok = login(HOMARR_ADMIN, IDX['PW_HOMARR_ADMIN'])
         if not ok: return result('Homarr', False, 'admin login failed')
         c, b = call(H + '/api/trpc/user.create', {'json': {'username': USER, 'email': '', 'password': PW, 'confirmPassword': PW, 'groupIds': [gid]}}, {'Origin': H}, jar=jar)
         if c != 200: return result('Homarr', False, f'create failed ({c}) {str(b)[:160]}')

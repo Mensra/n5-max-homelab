@@ -215,7 +215,7 @@ counts normal container start-up churn and will kill healthy services in a loop.
   through the proxy's rules.
 - **Docker containers don't use your LAN DNS by default.** Any container that must
   resolve `*.home` itself needs `dns: [<adguard-ip>]` in its compose file.
-- **Routers can quietly bypass your DNS.** Ours (Asus/Merlin) always advertises
+- **Routers can quietly bypass your DNS.** Some router firmware (e.g. Asuswrt-Merlin) always advertises
   itself as the IPv6 DNS server; fix with a `server=/home/<adguard-ip>` line in its
   dnsmasq custom config. Don't set the router's LAN domain name to your zone.
 - **Plan for DNS being down.** With no fallback the whole household loses internet
