@@ -1,0 +1,157 @@
+{
+ "1": {
+  "inputs": {
+   "unet_name": "flux2_dev_fp8mixed.safetensors",
+   "weight_dtype": "default"
+  },
+  "class_type": "UNETLoader",
+  "_meta": {
+   "title": "Load Diffusion Model"
+  }
+ },
+ "2": {
+  "inputs": {
+   "clip_name": "mistral_3_small_flux2_fp8.safetensors",
+   "type": "flux2"
+  },
+  "class_type": "CLIPLoader",
+  "_meta": {
+   "title": "Load CLIP"
+  }
+ },
+ "3": {
+  "inputs": {
+   "vae_name": "flux2-vae.safetensors"
+  },
+  "class_type": "VAELoader",
+  "_meta": {
+   "title": "Load VAE"
+  }
+ },
+ "4": {
+  "inputs": {
+   "text": "a test photo of a red apple on a wooden table",
+   "clip": [
+    "2",
+    0
+   ]
+  },
+  "class_type": "CLIPTextEncode",
+  "_meta": {
+   "title": "CLIP Text Encode (Prompt)"
+  }
+ },
+ "5": {
+  "inputs": {
+   "model": [
+    "1",
+    0
+   ],
+   "conditioning": [
+    "4",
+    0
+   ]
+  },
+  "class_type": "BasicGuider",
+  "_meta": {
+   "title": "BasicGuider"
+  }
+ },
+ "6": {
+  "inputs": {
+   "noise_seed": 12345
+  },
+  "class_type": "RandomNoise",
+  "_meta": {
+   "title": "RandomNoise"
+  }
+ },
+ "7": {
+  "inputs": {
+   "sampler_name": "euler"
+  },
+  "class_type": "KSamplerSelect",
+  "_meta": {
+   "title": "KSamplerSelect"
+  }
+ },
+ "8": {
+  "inputs": {
+   "steps": 28,
+   "width": 1024,
+   "height": 1024
+  },
+  "class_type": "Flux2Scheduler",
+  "_meta": {
+   "title": "Flux2Scheduler"
+  }
+ },
+ "9": {
+  "inputs": {
+   "width": 1024,
+   "height": 1024,
+   "batch_size": 1
+  },
+  "class_type": "EmptyFlux2LatentImage",
+  "_meta": {
+   "title": "EmptyFlux2LatentImage"
+  }
+ },
+ "10": {
+  "inputs": {
+   "noise": [
+    "6",
+    0
+   ],
+   "guider": [
+    "5",
+    0
+   ],
+   "sampler": [
+    "7",
+    0
+   ],
+   "sigmas": [
+    "8",
+    0
+   ],
+   "latent_image": [
+    "9",
+    0
+   ]
+  },
+  "class_type": "SamplerCustomAdvanced",
+  "_meta": {
+   "title": "SamplerCustomAdvanced"
+  }
+ },
+ "11": {
+  "inputs": {
+   "samples": [
+    "10",
+    0
+   ],
+   "vae": [
+    "3",
+    0
+   ]
+  },
+  "class_type": "VAEDecode",
+  "_meta": {
+   "title": "VAE Decode"
+  }
+ },
+ "12": {
+  "inputs": {
+   "filename_prefix": "openwebui",
+   "images": [
+    "11",
+    0
+   ]
+  },
+  "class_type": "SaveImage",
+  "_meta": {
+   "title": "Save Image"
+  }
+ }
+}

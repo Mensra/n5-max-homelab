@@ -1,0 +1,219 @@
+{
+ "1": {
+  "class_type": "UNETLoader",
+  "inputs": {
+   "unet_name": "flux2_dev_fp8mixed.safetensors",
+   "weight_dtype": "default"
+  }
+ },
+ "2": {
+  "class_type": "CLIPLoader",
+  "inputs": {
+   "clip_name": "mistral_3_small_flux2_fp8.safetensors",
+   "type": "flux2"
+  }
+ },
+ "3": {
+  "class_type": "VAELoader",
+  "inputs": {
+   "vae_name": "flux2-vae.safetensors"
+  }
+ },
+ "4": {
+  "class_type": "LoadImage",
+  "inputs": {
+   "image": "ref1.png"
+  }
+ },
+ "5": {
+  "class_type": "LoadImage",
+  "inputs": {
+   "image": "blank_ref.png"
+  }
+ },
+ "6": {
+  "class_type": "ImageScaleToTotalPixels",
+  "inputs": {
+   "image": [
+    "4",
+    0
+   ],
+   "upscale_method": "area",
+   "megapixels": 1.0,
+   "resolution_steps": 1
+  }
+ },
+ "7": {
+  "class_type": "ImageScaleToTotalPixels",
+  "inputs": {
+   "image": [
+    "5",
+    0
+   ],
+   "upscale_method": "area",
+   "megapixels": 1.0,
+   "resolution_steps": 1
+  }
+ },
+ "8": {
+  "class_type": "VAEEncode",
+  "inputs": {
+   "pixels": [
+    "6",
+    0
+   ],
+   "vae": [
+    "3",
+    0
+   ]
+  }
+ },
+ "9": {
+  "class_type": "VAEEncode",
+  "inputs": {
+   "pixels": [
+    "7",
+    0
+   ],
+   "vae": [
+    "3",
+    0
+   ]
+  }
+ },
+ "10": {
+  "class_type": "CLIPTextEncode",
+  "inputs": {
+   "text": "",
+   "clip": [
+    "2",
+    0
+   ]
+  }
+ },
+ "11": {
+  "class_type": "FluxGuidance",
+  "inputs": {
+   "conditioning": [
+    "10",
+    0
+   ],
+   "guidance": 4.0
+  }
+ },
+ "12": {
+  "class_type": "ReferenceLatent",
+  "inputs": {
+   "conditioning": [
+    "11",
+    0
+   ],
+   "latent": [
+    "8",
+    0
+   ]
+  }
+ },
+ "13": {
+  "class_type": "ReferenceLatent",
+  "inputs": {
+   "conditioning": [
+    "12",
+    0
+   ],
+   "latent": [
+    "9",
+    0
+   ]
+  }
+ },
+ "14": {
+  "class_type": "BasicGuider",
+  "inputs": {
+   "model": [
+    "1",
+    0
+   ],
+   "conditioning": [
+    "13",
+    0
+   ]
+  }
+ },
+ "15": {
+  "class_type": "RandomNoise",
+  "inputs": {
+   "noise_seed": 1
+  }
+ },
+ "16": {
+  "class_type": "KSamplerSelect",
+  "inputs": {
+   "sampler_name": "euler"
+  }
+ },
+ "17": {
+  "class_type": "Flux2Scheduler",
+  "inputs": {
+   "steps": 28,
+   "width": 2000,
+   "height": 1200
+  }
+ },
+ "18": {
+  "class_type": "EmptyFlux2LatentImage",
+  "inputs": {
+   "width": 2000,
+   "height": 1200,
+   "batch_size": 1
+  }
+ },
+ "19": {
+  "class_type": "SamplerCustomAdvanced",
+  "inputs": {
+   "noise": [
+    "15",
+    0
+   ],
+   "guider": [
+    "14",
+    0
+   ],
+   "sampler": [
+    "16",
+    0
+   ],
+   "sigmas": [
+    "17",
+    0
+   ],
+   "latent_image": [
+    "18",
+    0
+   ]
+  }
+ },
+ "20": {
+  "class_type": "VAEDecode",
+  "inputs": {
+   "samples": [
+    "19",
+    0
+   ],
+   "vae": [
+    "3",
+    0
+   ]
+  }
+ },
+ "21": {
+  "class_type": "SaveImage",
+  "inputs": {
+   "filename_prefix": "AIGEN/AIGEN_edit_%year%-%month%-%day%",
+   "images": [
+    "20",
+    0
+   ]
+  }
+ }
+}

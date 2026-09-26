@@ -1,0 +1,59 @@
+services:
+  comfyui:
+    build: .
+    # 2026-09-23: ROCm 7.14.1 build (enables ComfyUI DynamicVRAM on AMD). Rollback: :latest (ROCm 7.13 nightly).
+    image: comfyui-strix-halo:latest   # ROCm 7.13; 7.14.1 idles at 100% CPU on gfx1151 (ROCm/TheRock #7051, #8213)
+    container_name: comfyui
+    # Deliberately "no", not "always" -- if this ever crash-loops (bad model,
+    # OOM, driver issue), we want it to stay down and visible rather than
+    # silently auto-recycling forever. Restart it manually after checking why
+    # it stopped. (Confirmed intentional 2026-09-19, after the circuit
+    # breaker's cgroup.kill left it down while the other 5 LXC 102 containers
+    # -- all restart:always -- came back up on their own.)
+    restart: "no"
+    # Raised 2026-09-22: real peak usage during FLUX.2 LOADING alone is
+    # ~52GB anon-rss (confirmed twice via real cgroup OOM kills in kernel
+    # log, 15:05 and 16:56 same day) since --novram was removed 2026-09-19
+    # for speed. Real community reports (not just our own loading-phase
+    # measurement) say the FULL pipeline including actual sampling wants
+    # 64GB+ minimum, 128GB for comfortably smooth -- 65g was right at that
+    # bare floor, not real margin. 75g leaves genuine headroom above both
+    # our measured loading peak and the community-reported full-pipeline
+    # need, while staying well within LXC 102's 88GB cap. See BUILD_LOG.md.
+    mem_limit: 75g
+    memswap_limit: 83g   # 75g RAM + 8g swap headroom on the SSD (2026-09-24): slow down at the cap instead of OOM-kill
+    # --disable-mmap added 2026-09-25: without it the model files stay in page cache AND get copied to GTT (same RAM on this APU) -- ~2x footprint; every Strix Halo FLUX.2 guide requires it.
+    # --reserve-vram 32 -> 12 (2026-09-25): 32 dated from the pre-disable-mmap ~100 GB loading peak and left FLUX.2 partially loaded (6 GB streamed per step). amdgpu gttsize (56 GB) stays the hard ceiling.
+    command: ["--disable-pinned-memory", "--reserve-vram", "12", "--disable-mmap"]
+    devices:
+      - "/dev/kfd:/dev/kfd"
+      - "/dev/dri:/dev/dri"
+    group_add:
+      - "44"
+      - "993"
+    ports:
+      - "8188:8188"
+    volumes:
+      - /opt/appdata/comfyui/models:/app/ComfyUI/models
+      - /opt/appdata/comfyui/output:/app/ComfyUI/output
+      # AI images -> photo share "AI generated images" (LXC 102 mp0), prefix AIGEN so Immich excludes them (**/*AIGEN*)
+      - /mnt/ai-images:/app/ComfyUI/output/AIGEN
+      - /opt/appdata/comfyui/user:/app/ComfyUI/user
+      # uploaded reference photos + blank_ref.png (placeholder for one-photo edits) persist across recreates (2026-09-25)
+      - /opt/appdata/comfyui/input:/app/ComfyUI/input
+      - /opt/appdata/comfyui/cache:/root/.cache
+    environment:
+      - HSA_OVERRIDE_GFX_VERSION=11.5.1
+      - HIP_VISIBLE_DEVICES=0
+      # Thread pools = LXC 102 cores (18, raised 2026-09-23; were 10 from the 12-core era).
+      - OMP_NUM_THREADS=18
+      - MKL_NUM_THREADS=18
+      - OPENBLAS_NUM_THREADS=18
+      - NUMEXPR_NUM_THREADS=18
+    ipc: host
+    security_opt:
+      - seccomp:unconfined
+    networks:
+      default:
+        driver_opts:
+          com.docker.network.driver.mtu: 9000
