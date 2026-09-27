@@ -251,10 +251,14 @@ counts normal container start-up churn and will kill healthy services in a loop.
   **CPU Fan1, CPU Fan2 and PSU** (it labels them CPU / SSD / HDD). **The HDD fans aren't readable
   from Linux.** Match the driver's readings against the BIOS page before trusting any label. Build it
   with DKMS or rebuild it after every kernel update.
-- **The CPU and PSU fans on "Auto" step through four fixed speeds** and stay at idle until the CPU
-  passes about 65 C. That's normal for this board. Leave them on Auto.
-- **The HDD fans follow the *ambient* ("System") temperature, not the drives.** They also get a short
-  boost on CPU heat spikes. Drive load barely changes that input, so **the fans never ramp for drive
+- **The CPU and PSU fans on "Auto" step through four fixed speeds.** Measured under a 90-second
+  all-core load: idle (~1,930 RPM) until the CPU reaches 75 C, then ~2,250 RPM, then ~2,540 RPM at
+  78 C. On the way down they hold until 62 / 60 / 57 C, a built-in hysteresis that stops them
+  flapping. That's normal for this board. Leave them on Auto.
+- **The HDD fans follow the *ambient* ("System") temperature, not the drives.** They also get a
+  boost from CPU heat: it starts when the CPU reaches the mid-60s C (before the CPU fans' own first
+  step), lasts as long as the load, and winds down in steps once the CPU is back in the high 50s.
+  The "System" sensor sits inside the case and reads roughly 2-4 C above the room. Drive load barely changes that input, so **the fans never ramp for drive
   heat**: their base speed is the only thing cooling the drives through long jobs. On "Smart Manual",
   **Start PWM** effectively sets the idle speed. Keep **Fan Start just below the room temperature**,
   or the fans drop to their minimum (~1,000 RPM) and the drives creep up under load. What worked
@@ -262,7 +266,37 @@ counts normal container start-up churn and will kill healthy services in a loop.
   38-41 C through a nightly backup, and acceptable noise.
 - **Tune the HDD fans by drive temperature,** logged every minute before and after each change, plus a
   few minutes of read-only random-seek load on the pool disks. Treat 45 C as the limit.
+- **The fan-curve table in the EC's memory is not live on the N5 Max.** The Minisforum MS-S1 MAX
+  (same Ryzen AI Max+ 395) gets custom CPU fan curves by rewriting a table at EC offsets `0x11` /
+  `0x31` ([ms-s1-max-fans-control](https://github.com/raimondomartire/ms-s1-max-fans-control)).
+  The N5 Max has the identical table (stock: 25 C 20% ... 90 C 32%), and writes are accepted, but
+  the fans ignore it: raising two steps to 40% changed nothing, and under load the fans stepped at
+  78 C where the table says 85 C. Save the original bytes before any test and write them back
+  afterwards; a reboot also restores them.
 - The M.2 bay heatsink ships loose in the accessory box (see section 1).
+
+### Measuring fans Linux can't see: record them
+
+The two HDD fans have no Linux-visible speed reading, but they can be measured by sound. Fans make
+a tone at their blade-pass frequency (RPM / 60 x number of blades), which shows up clearly in a
+spectrum even from a phone recording.
+
+1. Put a phone near the rear of the box and start recording.
+2. Run a timed script: 45 s idle, 90 s full CPU load (e.g. 16 x `sha256sum /dev/zero` under
+   `timeout 90`), then 2 minutes of cool-down. Log a timestamp, the CPU temperature and every
+   readable fan speed every 5 s.
+3. Convert the recording to mono WAV (`ffmpeg -i rec.m4a -ac 1 -ar 48000 rec.wav`) and compute an
+   averaged spectrum for each 5-second slice (numpy FFT, Hann window). Track the overall level, the
+   1-4 kHz band and the strongest tonal peaks per slice.
+4. Line the slices up with the log. A tone that jumps while the known fans haven't moved belongs
+   to the fans you can't see.
+
+On this box: the drives show as a clean 120 Hz tone (7,200 RPM / 60); the two HDD fans as a tone
+near 256 Hz at base speed that jumps to ~407/414 Hz (two fans at slightly different speeds) when
+boosted, with the whole box about 7 dB louder. That's how the CPU-heat boost threshold above was
+found. Start the recording before starting the script and make an audible marker if you need
+timing better than about 15 s. Don't publish the recordings: the file name or background sound
+can identify you.
 
 ---
 

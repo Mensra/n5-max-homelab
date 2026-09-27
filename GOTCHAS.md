@@ -6,7 +6,7 @@ One line each; details in [GUIDE.md](GUIDE.md).
 1. **The M.2 bay heatsink may ship loose in the accessory box.** Fit it (peel the pad film).
 2. **Only one M.2 slot is PCIe 4.0 x4; the rest are x1.** Put the drive that matters there and check `lspci -vv`.
 3. **The HDD fans follow ambient temperature, not the drives.** Their base speed (Start PWM) is what cools the drives under load.
-4. **The community fan driver mislabels the N5 Max's channels** (they're CPU1, CPU2, PSU) and can't see the HDD fans.
+4. **The community fan driver mislabels the N5 Max's channels** (they're CPU1, CPU2, PSU) and can't see the HDD fans. Measure those by sound instead (GUIDE section 7).
 5. **The internal PCIe x4 slot is already used** by the Thunderbolt 5 card behind the two 80 Gbps ports.
 
 ## Strix Halo GPU / AI
