@@ -40,3 +40,14 @@ One line each; details in [GUIDE.md](GUIDE.md).
 ## Process
 26. **Read release notes and the software's own source/docs before changing anything; test the exact scenario that failed.**
 27. **Keep each password in one place** and use readable placeholders everywhere else.
+
+## DNS capacity, alerting and Wi-Fi (added October 2026)
+28. **AdGuard Home's rate limit (20 queries/s, counted for the whole /24 by default) silently drops bursts.** On a private resolver set `ratelimit` to 0 (live, via `/control/dns_config`). We measured it: 60 parallel lookups, 19 answered; after the change 60/60 and 120/120. It shows up as "server misbehaving" in Docker and as random, unexplained "unavailable" in smart-home integrations.
+29. **A webhook can answer HTTP 200 to an id it does not know** (Home Assistant does). A 200 is not delivery. Keep the id in exactly one place and read it from there at send time.
+30. **Alert about a failure through something that cannot fail with it.** Proxmox and its backup server run on the same box as Home Assistant, so their failure notices use their own native mail, straight to your mailbox, not through the smart-home stack.
+31. **Proxmox Backup Server in a container has no mail relay.** Its default notification target delivered nowhere for months. Give it a direct SMTP target and a matcher that only passes warning/error (the default matcher also routes successes).
+32. **`docker compose up -d <service>` can stop your container.** In a project whose network another container is attached to, compose tries to recreate the network, fails halfway and leaves the service stopped and detached. Check `docker ps -a` after any compose command; use `down` then `up -d` for the whole project.
+33. **Never run every vendor driver command "as a getter".** Looping through all `wl` commands without arguments on an Asus/Broadcom router crashed the 5 GHz radio firmware on router and node (`cwmax`). Use an allow-list of known read-only commands.
+34. **RouterOS prints CRLF over SSH.** `[ "$x" -ge 1 ]` fails on `"4\r"`; strip with `tr -d '\r'`.
+35. **MAC deny lists in the Broadcom driver are runtime-only** and vanish at every wireless restart or reboot. If you use them to pin a device to one access point, re-apply from a timer, and release them automatically when the access point is down.
+36. **On a NIC whose driver clears TX checksum/TSO above MTU 1500 (RTL8127, r8169), jumbo frames cost the offloads.** Measure 1500 against 9000 before keeping mixed MTUs on one segment.

@@ -413,3 +413,50 @@ Two Proxmox traps that silently stopped container backups for days:
 - **Keep each password in exactly one place** and refer to it by a readable placeholder everywhere else
   (`{{PW_SOMETHING}}`). Every duplicate is a copy that can silently go out of date -- and the day you
   need the emergency sheet is the day a stale value hurts most.
+
+---
+
+## 13. Alerts that tell you how to fix them (added October 2026)
+
+Detection without a fix in front of you is half an alert. What worked:
+
+- **One alert routine for everything you built.** Every watcher makes the same call (`scripts/ha-alert.py`):
+  once per issue, then a bell notification plus a push to the phones, then the clock on the desk chimes until
+  you touch it. The phone is only the alarm. If Home Assistant does not answer, the full text goes by email
+  instead, so an alert is never silently lost.
+- **Show the repair where the failure shows.** The alert links to a plain page written on the fly, large type,
+  readable on a screen standing next to the hardware: *what happened*, *do this* (numbered steps written next
+  to the code that detects the failure, so they exist once), *first checks* for any equipment, then what to do
+  if the part is replaced by **the same model, an identical one or the same maker's same line** (the exact
+  steps for your setup) and if it is replaced by **a different make or line** (brand-neutral requirements the
+  new device must meet, pulled live from the restore runbook so there is only one copy). The page refreshes
+  itself and shows RESOLVED when the check passes.
+- **Critical infrastructure alerts the shortest way.** The hypervisor and its backup server use their own
+  native mail straight to your mailbox; the smart-home stack runs on the same box and would fail with them.
+  Fewer links in the chain means fewer ways for the alert not to arrive.
+- **Power is announced before it fails.** The UPS covers the whole network path, so the first alert is
+  "running on battery", with the box and router still up to send it.
+- **Deliberate duplication, with a check.** One source of truth is the default; on a critical path a copy that
+  shortens the chain is right (three backup scripts each carry their own retention numbers; the backup server
+  keeps its own copy of the mail login). Every such copy is listed, and a five-minute check alerts if the
+  copies differ. Copies that buy nothing are derived instead: the NAS admin page's share list is read from the
+  single-sign-on groups, and the alert webhook's id is read from the one file that defines it.
+- **Pinning a device to one access point needs a graceful fallback.** A timer re-applies the MAC deny lists
+  (they are runtime-only), checks the chosen access point really runs the network, and releases the devices
+  to the other access points the moment it does not (also when it has just been replaced and not configured
+  yet), then binds them back by itself. Nothing depends on a person or an assistant being present.
+
+## 14. DNS capacity: measure it (added October 2026)
+
+A staged test (`scripts/dns-stress.py`: 4 s per stage, plus a "household canary" asking a cached name every
+100 ms, stopping at the first stage that is not clean) gave, on the N5 with AdGuard Home and one DoH upstream:
+
+| Workload | Result |
+|---|---|
+| Cached answers | 48,000 queries/s with 100 % answered, p99 under 2 ms (no stage failed; the test stopped there) |
+| Cache misses (each goes to the DoH upstream) | clean up to about 100/s (p99 62 ms); at 200/s everything is still answered but p99 rises to 2.5 s |
+| Default rate limit (20/s per /24) | 60 parallel lookups: 19 answered. Disabled on the private resolver |
+
+The busiest second in three and a half days of the household's logs was 129 queries, mostly cached. The
+lesson is the rate limit, not the capacity: check `ratelimit` in `AdGuardHome.yaml` before blaming the
+network for random failures.

@@ -65,3 +65,34 @@ the most useful part.
 
 16. **The same password written in several places.** Every copy is a chance to go stale. One place, and
     readable placeholders (`{{PW_NAME}}`) everywhere else.
+
+## Added October 2026
+
+17. **A "list every getter" sweep crashed two radios.** To compare the settings of two identical Wi-Fi units
+    the assistant ran all ~1,800 driver commands without arguments on both production radios at once, using a
+    deny-list of "dangerous" words. One command crashed the 5 GHz firmware on both units; both rebooted and
+    about fifteen devices lost Wi-Fi for two minutes.
+    **Lesson:** allow-list known read-only commands, compare configuration from the exported settings (text)
+    instead of the live driver, and try anything untested on one unit first.
+
+18. **A critical alert was routed through the thing it reports on.** The first design sent Proxmox backup
+    failures through Home Assistant, which runs on that Proxmox host: when the host is the problem, the alert
+    dies with it. The owner caught it.
+    **Lesson:** a critical function alerts through the shortest path with no shared dependency.
+
+19. **A log line claimed a check was running that had never been installed.** The change had been written to a
+    scratch copy; later edits started from the installed file, so it was silently dropped. Found by reading
+    the check's state file.
+    **Lesson:** log a change only after reading the live result of that change; the log tool now stamps the
+    real time and takes the text after the result has been read.
+
+20. **Hand-typed timestamps in the build log** were invented, some in the future.
+    **Lesson:** the time comes from the clock, never from the writer.
+
+21. **"HTTP 200" was treated as "delivered".** The webhook answers 200 to any id. Delivery is proven by the
+    receiving side acting on it, so the id now lives in one place only.
+
+22. **A "simplification" removed a deliberate copy.** Collapsing three backup scripts' identical retention
+    numbers into one server-side table would also have changed container-backup retention, and removed the
+    independence that makes each script self-contained. Deliberate duplication on a critical path is
+    denormalization: keep it, list it, and add a check that the copies stay equal.
