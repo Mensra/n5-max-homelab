@@ -10,6 +10,8 @@ Take back control of your **Tittle Light** (the 8 x 8 x 8 RGB LED cube by Spin-R
 - **All 158 built-in items of the app by name:** 7 clocks, 76 emoji (weather, festive, food, expressions, others, 12 constellations), 50 mood-lighting scenes and games, 12 music-visualizer modes. See [docs/ANIMATIONS.md](docs/ANIMATIONS.md).
 - **The clock:** selecting a clock also sets the cube's time and date, which it forgets after a power failure.
 - **Brightness** of any built-in item.
+- **A two-level pick in Home Assistant:** one drop-down for the group (Clock, Emoji: Weather, Mood lighting: Game, My pictures, ...) and one for the item, so 158 items are not one long list (see `homeassistant/configuration.example.yaml`; `tittle.py list` prints the groups).
+- **A display you pick by hand is held** until the next daily-plan boundary or an alert, so the plan (which runs every minute) does not undo it. The cube's own timers reset it to a known state when they fire, so the plan's windows mirror them.
 - **Your own animations:** the app's "Paint" format is decoded: up to 120 frames of an 8 x 8 x 8 picture with any colours and a frame interval. Pictures are plain JSON files (see `src/pictures/`).
 - **A drawing vocabulary for language models** (dots, lines, boxes, spheres, text, scrolling text, spin): see [docs/LLM.md](docs/LLM.md).
 - **Alerts:** a small rules file maps "what is wrong" to "what the cube shows" (for example DNS down = the letters D N S then a flashing red and blue beacon; a drive alert = a slowly spinning disk; a person at the door at night = a figure walking up to a door), with the clock as the idle display. An example Home Assistant integration is in [homeassistant/](homeassistant/).

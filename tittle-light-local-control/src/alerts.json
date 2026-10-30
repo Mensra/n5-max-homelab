@@ -1,4 +1,6 @@
-{"idle": "Clock / Lifting",
+{"default": "Lamp / Off",
+ "daily": [{"from": "08:30", "to": "20:00", "item": "Clock / Lifting"},
+           {"from": "20:30", "to": "21:00", "item": "Mood lighting: Game / Spin & Twist"}],
  "rules": [{"match": ["dns"], "picture": "alert-dns"},
            {"match": ["drive", "smart"], "picture": "alert-drive"},
            {"match": ["frontdoor"], "picture": "door-walker"}]}

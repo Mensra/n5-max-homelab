@@ -21,7 +21,7 @@ command_line:
       payload_off: "off"
       device_class: connectivity
       scan_interval: 30
-  # the names of every item and picture, for the select below (tittle.py list reads src/modes.tsv and src/pictures/)
+  # the items and pictures grouped by section (a two-level pick: the group first, then the item), for the two selects below (tittle.py list reads src/modes.tsv and src/pictures/)
   - sensor:
       name: Tittle modes
       unique_id: tittle_modes
@@ -29,7 +29,7 @@ command_line:
       scan_interval: 86400
       value_template: "{{ value_json.names | length }}"
       json_attributes:
-        - names
+        - groups
 
 input_number:
   tittle_show_brightness:
@@ -41,14 +41,21 @@ input_number:
 
 template:
   - select:
-      - name: Tittle Show
+      # first the group (Clock, Emoji: Weather, ...); picking a group only fills the item list below
+      - name: Tittle group
         unique_id: tittle_show
-        options: "{{ state_attr('sensor.tittle_modes', 'names') or [] }}"
+        options: "{{ (state_attr('sensor.tittle_modes', 'groups') or {}) | list }}"
+        optimistic: true
+        select_option: []
+      # then the item; picking it shows it at once
+      - name: Tittle item
+        unique_id: tittle_item
+        options: "{{ (state_attr('sensor.tittle_modes', 'groups') or {}).get(states('select.tittle_show'), []) }}"
         optimistic: true
         select_option:
           - action: shell_command.tittle_show
             data:
-              name: "{{ option }}"
+              name: "{{ states('select.tittle_show') }} / {{ option }}"
               level: "{{ states('input_number.tittle_show_brightness') | int(255) }}"
 
 # ---- a script a language model can call (a text field "spec" and an optional "brightness"); it returns {"result": "ok"} or the error text ----

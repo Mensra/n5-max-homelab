@@ -3,9 +3,9 @@
 tittle.py show "SECTION / NAME" BRIGHTNESS [HH MM SS YY MM DD]   show one of the app's clock, emoji, mood or visualizer items by name (names from modes.tsv); BRIGHTNESS 0-255; the six numbers = the LOCAL time and date, needed by the clock items
 tittle.py paint FILE.json [BRIGHTNESS]   draw a custom picture (the app's Paint format): {"interval_ms": 500, "frames": [[[layer,row,col,[r,g,b]], ...], ...]}; layer 1-8, row 1-8, column 1-8
 tittle.py alert KEYS BRIGHTNESS HH MM SS YY MM DD [force]   show what the open alert keys (comma list) call for per alerts.json, else its idle item; does nothing when that is already showing
-tittle.py ping                          print "on" when the cube answers on its port, else "off" (for the HA reachability sensor)
+tittle.py ping                          print "on" when the cube answers a status poll on its control port, else "off" (for the HA reachability sensor)
 tittle.py draw BASE64JSON [BRIGHTNESS]   draw from a JSON drawing (dot/line/box/sphere/text ops, frames, spin, scroll; see render() below), the form a language model uses
-tittle.py list                          print {"names": [...]} for Home Assistant (the select entity's options come from here, so modes.tsv is the one list)
+tittle.py list                          print {"names": [...], "groups": {group: [items]}} for Home Assistant (the two drop-downs, group then item, get their options from here, so modes.tsv and pictures/ are the one list)
 Called by Home Assistant's shell_command tittle_set / tittle_show and a command_line sensor (configuration.yaml). Exit 0 = the cube acknowledged.
 Protocol (TCP to the cube, port 9999; colour from github.com/TittleLight/tittle-sdk-android 2018, the rest read from the original iPad app's own network traffic, see docs/PROTOCOL.md): colour = 10 R G B I 0D 0A, reply 00 00 10 00 0D 0A. A mode is the app's own 18-20 byte message (type 20 emoji, 50 mood, 34 clock),
 reply 00 00 <type> 00 0D 0A. Brightness = the one byte that is ff in every captured message (round 13: the app's slider re-sends the message with that byte changed): index 9 for types 20 and 50, 8 for 34, 5 for 41. modes.tsv = the labelled table (round, section, position, name, message hex[, flag]); a row with a flag (custom or uploaded pictures) is not shown by this script.
@@ -30,6 +30,8 @@ CUBE = _host()
 PORT = 9999
 BRIGHT_AT = {0x20: 9, 0x50: 9, 0x34: 8, 0x41: 5}   # index of the brightness byte per message type (round 13)
 TABLE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "modes.tsv")
+HERE = os.path.dirname(os.path.abspath(__file__))
+GAP_S, MAX_BYTES, MAX_FRAMES = 20, 6000, 64       # the cube's control port stopped answering (until power-cycled) twice after several large uploads close together: space uploads and keep them small
 
 
 PICTURES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "pictures")   # one FILE.json per custom picture; each is listed as "My pictures / NAME"
@@ -93,7 +95,39 @@ def build_picture(spec, level=255, counter=None, pic_id=None, announce_less=True
     return msgs
 
 
+def poll():
+    """True when the cube answers a status poll (a hung control port still accepts the connection, so a bare connect proves nothing)."""
+    try:
+        with socket.create_connection((CUBE, PORT), timeout=3) as s:
+            s.settimeout(3)
+            s.sendall(b"\x60\x10\x00\x0d\x0a")
+            return s.recv(64)[:2] == b"\x60\x02"
+    except OSError:
+        return False
+
+
 def send_picture(msgs):
+    size = sum(int.from_bytes(m[5:7], "big") for m in msgs[1:])
+    if size > MAX_BYTES:
+        sys.exit(f"tittle: the picture is too big for the cube ({size} bytes of picture data, the limit is {MAX_BYTES}): use fewer frames or fewer lit LEDs")
+    import fcntl
+    with open(os.path.join(HERE, ".upload.lock"), "w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)              # one upload at a time, GAP_S seconds apart
+        stamp = os.path.join(HERE, ".last-upload")
+        try:
+            wait = GAP_S - (time.time() - float(open(stamp).read()))
+        except (OSError, ValueError):
+            wait = 0
+        if wait > 0:
+            time.sleep(wait)
+        if not poll():
+            sys.exit("tittle: the cube does not answer its control port (it hangs after many large uploads): unplug it for 5 seconds, then it recovers by itself")
+        _send_picture(msgs)
+        with open(stamp, "w") as f:
+            f.write(str(time.time()))
+
+
+def _send_picture(msgs):
     try:
         with socket.create_connection((CUBE, PORT), timeout=4) as s:
             s.settimeout(4)
@@ -206,7 +240,7 @@ def render(spec):
         txt = str(sc["text"]).upper()
         width = 6 * len(txt)
         frames = []
-        for shift in range(width + 8):
+        for shift in range(0, width + 8, int(sc.get("step", 2))):          # 2 columns per frame (half the data of 1)
             dots = _ops_to_dots([{"text": txt, "col": 9 - shift, "row": sc.get("row", 1), "layers": sc.get("layers", [4, 5]), "color": sc.get("color", "white")}])
             frames.append(dots)
     else:
@@ -214,8 +248,8 @@ def render(spec):
         if "spin" in spec:
             sp = spec["spin"]
             frames = _spin(frames[0], int(sp.get("frames", 16)), float(sp.get("degrees", 360)), sp.get("axis", "vertical"))
-    if not 1 <= len(frames) <= 120:
-        raise ValueError("a drawing needs 1-120 frames")
+    if not 1 <= len(frames) <= MAX_FRAMES:
+        raise ValueError(f"a drawing needs 1-{MAX_FRAMES} frames, this one has {len(frames)}")
     return {"interval_ms": ms, "frames": frames}
 
 
@@ -234,6 +268,7 @@ def rows():
         for r in csv.reader(f, delimiter="\t"):
             if len(r) == 5:                       # a sixth column = flag: custom or uploaded pictures, not replayable by a plain select
                 yield f"{r[1]} / {r[3]}", r[4]
+    yield "Lamp / Off", "off:"                       # blanks the whole display (lamp off); the app's own "Switch off" timer does the same
     if os.path.isdir(PICTURES):
         for f in sorted(os.listdir(PICTURES)):
             if f.endswith(".json"):
@@ -270,6 +305,9 @@ def show_named(name, lvl, tm):
     hexmsg = dict(rows()).get(name)
     if hexmsg is None:
         sys.exit(f"tittle: no such item {name!r} (see: tittle.py list)")
+    if hexmsg == "off:":
+        send(bytes([0x10, 0, 0, 0, 0, 0x0D, 0x0A]), 0x10)
+        return
     if hexmsg.startswith("paint:"):
         paint(hexmsg[6:], lvl)
         return
@@ -284,47 +322,65 @@ def show_named(name, lvl, tm):
 
 
 def alert(keys, lvl, tm, force):
-    """Show what the open alert keys call for (the rules file), else the idle item; only when it differs from what was shown last (or force)."""
+    """Show what the open alert keys call for (the rules), else what the daily plan calls for at this local time, else the default; only when that differs from what was shown last
+    (or force). A display picked by hand is held (see below). The plan window is part of the remembered state, so an alert is shown again once after each plan boundary (the cube's own timers, if any, change the display there)."""
     try:
         with open(ALERTS) as f:
             cfg = json.load(f)
-        want = cfg["idle"]
+        mins = tm[0] * 60 + tm[1]
+        slot, want = -1, cfg.get("default", cfg.get("idle"))
+        for k, w in enumerate(cfg.get("daily", [])):
+            lo, hi = (int(x[:2]) * 60 + int(x[3:5]) for x in (w["from"], w["to"]))
+            if lo <= mins < hi:
+                slot, want = k, w["item"]
+                break
+        alerted = False
         for rule in cfg["rules"]:
             if any(p in k for k in keys.split(",") for p in rule["match"]):
-                want = "My pictures / " + rule["picture"]
+                want, alerted = "My pictures / " + rule["picture"], True
                 break
     except (OSError, ValueError, KeyError, TypeError) as e:
         sys.exit(f"tittle: bad alerts file {ALERTS}: {e}")
+    state = f"{want}|{slot}"
     try:
         last = open(LAST).read()
     except OSError:
         last = ""
-    if want == last and not force:
+    if last.startswith("manual|") and not alerted and not force:
+        # a display picked by hand (select, draw, paint) stays until the plan moves to its next window or an alert wants the cube; the first look after the pick records the window it was picked in
+        if last == "manual|":
+            with open(LAST, "w") as f:
+                f.write(f"manual|{slot}")
+            return
+        if last == f"manual|{slot}":
+            return
+    if state == last and not force:
         return
     show_named(want, lvl, tm)
     with open(LAST, "w") as f:
-        f.write(want)
+        f.write(state)
 
 
 def main():
     a = sys.argv[1:]
     if a[:1] == ["ping"]:
-        try:
-            socket.create_connection((CUBE, PORT), timeout=3).close()
-            print("on")
-        except OSError:
-            print("off")
+        print("on" if poll() else "off")
         return
     if a[:1] == ["draw"] and len(a) in (2, 3):
         draw(a[1], int(a[2]) if len(a) == 3 else 255)
-        open(LAST, "w").write("(a drawing)")
+        open(LAST, "w").write("manual|")
         return
     if a[:1] == ["paint"] and len(a) in (2, 3):
         paint(a[1], int(a[2]) if len(a) == 3 else 255)
-        open(LAST, "w").write("(a picture)")
+        open(LAST, "w").write("manual|")
         return
     if a[:1] == ["list"]:
-        print(json.dumps({"names": [n for n, _ in rows()]}))
+        names = [n for n, _ in rows()]
+        groups = {}
+        for n in names:                                   # "Emoji: Weather / Sunny" -> group "Emoji: Weather", item "Sunny" (the file order is kept)
+            g, _, item = n.rpartition(" / ")
+            groups.setdefault(g, []).append(item)
+        print(json.dumps({"names": names, "groups": groups}))
         return
     if a[:1] in (["show"], ["alert"]):
         try:
@@ -335,7 +391,7 @@ def main():
             sys.exit("tittle: usage: show NAME BRIGHTNESS [HH MM SS YY MM DD]  |  alert KEYS BRIGHTNESS HH MM SS YY MM DD [force]")
         if a[0] == "show":
             show_named(a[1], lvl, tm)
-            open(LAST, "w").write(a[1])               # the alert logic must know what is on the cube now
+            open(LAST, "w").write("manual|")           # a hand-picked display is held until the next plan boundary or an alert (see alert())
         else:
             alert(a[1], lvl, tm, a[9:10] == ["force"])
         return
