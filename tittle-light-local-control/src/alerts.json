@@ -1,0 +1,4 @@
+{"idle": "Clock / Lifting",
+ "rules": [{"match": ["dns"], "picture": "alert-dns"},
+           {"match": ["drive", "smart"], "picture": "alert-drive"},
+           {"match": ["frontdoor"], "picture": "door-walker"}]}

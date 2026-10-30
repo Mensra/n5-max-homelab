@@ -1,0 +1,89 @@
+# Example Home Assistant integration for tittle.py (Home Assistant OS / container: copy src/ to /config/tittle/, put your cube's address in /config/tittle/tittle.host).
+# Merge these blocks into configuration.yaml (they are separate top-level keys), run a config check, then "Reload all YAML" (a new command_line key needs a restart once).
+
+shell_command:
+  # colour: tittle_set with r, g, b, i (0-255 each, i = intensity, 0 = off)
+  tittle_set: "python3 /config/tittle/tittle.py {{ r }} {{ g }} {{ b }} {{ i }}"
+  # one built-in item or one of your pictures, by name; level 0-255; the six numbers are the LOCAL time and date (the clock items need them)
+  tittle_show: "python3 /config/tittle/tittle.py show \"{{ name }}\" {{ level }} {{ now().strftime('%H %M %S %y %m %d') }}"
+  # what the open alert keys call for (rules in alerts.json); "force" re-sends even when it believes it is already showing
+  tittle_alert: "python3 /config/tittle/tittle.py alert \"{{ keys }}\" 255 {{ now().strftime('%H %M %S %y %m %d') }}{{ ' force' if force | default(false) else '' }}"
+  # a JSON drawing for a language model (travels base64-encoded; see docs/LLM.md)
+  tittle_draw: "python3 /config/tittle/tittle.py draw {{ spec_b64 }} {{ brightness | default(255) }}"
+
+command_line:
+  # is the cube answering on its control port? Going from off to on is the moment to re-send the clock (it forgets the time in a power failure)
+  - binary_sensor:
+      name: Tittle cube reachable
+      unique_id: tittle_cube_reachable
+      command: "python3 /config/tittle/tittle.py ping"
+      payload_on: "on"
+      payload_off: "off"
+      device_class: connectivity
+      scan_interval: 30
+  # the names of every item and picture, for the select below (tittle.py list reads src/modes.tsv and src/pictures/)
+  - sensor:
+      name: Tittle modes
+      unique_id: tittle_modes
+      command: "python3 /config/tittle/tittle.py list"
+      scan_interval: 86400
+      value_template: "{{ value_json.names | length }}"
+      json_attributes:
+        - names
+
+input_number:
+  tittle_show_brightness:
+    name: Tittle Show brightness
+    min: 10
+    max: 255
+    step: 5
+    mode: slider
+
+template:
+  - select:
+      - name: Tittle Show
+        unique_id: tittle_show
+        options: "{{ state_attr('sensor.tittle_modes', 'names') or [] }}"
+        optimistic: true
+        select_option:
+          - action: shell_command.tittle_show
+            data:
+              name: "{{ option }}"
+              level: "{{ states('input_number.tittle_show_brightness') | int(255) }}"
+
+# ---- a script a language model can call (a text field "spec" and an optional "brightness"); it returns {"result": "ok"} or the error text ----
+# script:
+#   tittle_draw:
+#     alias: "Tittle cube: draw"
+#     description: "<paste the description from docs/LLM.md>"
+#     fields:
+#       spec: {description: "The drawing as JSON text", required: true, selector: {text: {multiline: true}}}
+#       brightness: {description: "0-255", required: false, selector: {number: {min: 0, max: 255}}}
+#     sequence:
+#       - variables: {spec_b64: "{{ (spec | to_json if spec is not string else spec) | base64_encode }}"}
+#       - action: shell_command.tittle_draw
+#         data: {spec_b64: "{{ spec_b64 }}", brightness: "{{ brightness | default(255) }}"}
+#         response_variable: r
+#       - variables: {out: {result: "{{ 'ok' if r.returncode == 0 else ((r.stderr or r.stdout or 'failed') | trim) }}"}}
+#       - stop: drawn
+#         response_variable: out
+
+# ---- automations (examples; YAML automations or the UI) ----
+# Follow a comma-separated list of open alert keys held in an input_text (any alerting system can maintain it): tittle.py picks the picture by the rules in alerts.json,
+# or the idle item, and sends only when the wanted display changed (every upload flashes the cube).
+# automation:
+#   - alias: "Tittle cube: follow open alerts"
+#     triggers: [{trigger: state, entity_id: input_text.open_alerts}]
+#     actions: [{action: shell_command.tittle_alert, data: {keys: "{{ states('input_text.open_alerts') }}"}}]
+#     mode: queued
+#   - alias: "Tittle cube: back online"      # re-send the display (and so the clock) when the cube returns after a power failure
+#     triggers: [{trigger: state, entity_id: binary_sensor.tittle_cube_reachable, from: "off", to: "on", for: "00:00:10"}]
+#     actions: [{action: shell_command.tittle_alert, data: {keys: "{{ states('input_text.open_alerts') }}", force: true}}]
+#   - alias: "Tittle cube: person at the door at night"
+#     triggers: [{trigger: state, entity_id: binary_sensor.front_door_person, to: "on"}]
+#     conditions: [{condition: time, after: "00:00:00", before: "06:00:00"}]
+#     actions:
+#       - {action: shell_command.tittle_alert, data: {keys: "{{ states('input_text.open_alerts') }},frontdoor"}}
+#       - {delay: {seconds: 30}}
+#       - {action: shell_command.tittle_alert, data: {keys: "{{ states('input_text.open_alerts') }}"}}
+#     mode: restart

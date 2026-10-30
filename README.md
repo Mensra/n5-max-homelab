@@ -28,6 +28,7 @@ graphics card can, and at 2026 memory prices nothing we could find matches it fo
 | [VALUE.md](VALUE.md) | What else you could buy for equivalent storage + AI, with September 2026 prices |
 | [scripts/](scripts/) | Reusable pieces: GPU "baton" watcher, host memory guard, break-glass admin setup, ComfyUI compose |
 | [workflows/](workflows/) | ComfyUI API-format workflows for FLUX.2 text-to-image and two-reference-photo composition |
+| [tittle-light-local-control/](tittle-light-local-control/) | A side project: local control of the Tittle Light LED cube without its app or cloud (protocol, all 158 built-in animations, custom animations, timers, a tool, a Home Assistant example). Useful on its own for anyone who owns one |
 
 ## Disclaimer -- use at your own risk
 
