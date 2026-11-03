@@ -96,3 +96,19 @@ the most useful part.
     numbers into one server-side table would also have changed container-backup retention, and removed the
     independence that makes each script self-contained. Deliberate duplication on a critical path is
     denormalization: keep it, list it, and add a check that the copies stay equal.
+
+23. **A test burst switched the mail path off.** Fifteen test requests in a few seconds tripped systemd's start limit and latched the intake units off until I reset them. Lesson: a tripped safeguard is a design failure; the service now takes any burst, and the burst is a standing test.
+
+24. **A mute swallowed an approval request.** I muted alerts to restart the monitoring service; a notice that needed a person's yes arrived meanwhile and was only logged. Lesson: notices that need a decision are exempt from a mute or are replayed when it ends.
+
+25. **An analysis command printed private address strings into a cloud assistant session.** I assumed a delimiter in a field and printed the whole field. No titles, order numbers or card data were shown, but the exposure counted. Lesson: run analysis in local programs that print counts only, with no mode that prints a value, and look at a field's shape before parsing it.
+
+26. **Proposed a box-wide tool layer before running the elegance checklist.** Run through the twelve questions it failed on least machinery, one solution per class, a hand-kept list of exposed tools, directness and a second copy of the tool descriptions. Lesson: run the gate before the proposal, not after the question.
+
+27. **Deleted a whole results folder after a test.** I removed everything instead of only the files my tests created. Nothing was lost (the host expires them, the audit trail is elsewhere) but only by luck. Lesson: delete only what you created, by name.
+
+28. **Told the owner a mail was waiting without comparing it with what had been sent.** It was a 98 percent copy of an already-sent letter. Lesson: compare the record before reporting a state.
+
+29. **A retry loop that retried a refused login.** The first version of the mail retry helper retried a wrong-password error three times, because SMTP errors subclass OSError. Lesson: attack a retry helper with the failures you do *not* want retried.
+
+30. **Unreadable data was treated as zero.** A price field that could not be parsed counted as a zero price and would have filed junk under the free-items collection. Lesson: unparseable is its own class, never a default value; found by a hand attack on invented data.

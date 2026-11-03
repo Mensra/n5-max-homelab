@@ -1,7 +1,7 @@
 # N5 Max home lab: NAS + media + single sign-on + local AI on one Strix Halo box
 
 Field notes from building a household server on a **Minisforum N5 Max** (AMD Ryzen AI Max+ 395,
-Radeon 8060S, 128 GB unified memory, 5 drive bays) with **Proxmox VE**, September 2026.
+Radeon 8060S, 128 GB unified memory, 5 drive bays) with **Proxmox VE**, September 2026. Last full update: November 2026.
 
 It runs, on one box:
 
@@ -13,6 +13,8 @@ It runs, on one box:
   TeslaMate (Tesla data logger with its Grafana dashboards)
 - **Local AI:** Ollama (llama3.3:70b fits), Open WebUI, ComfyUI with **full-quality FLUX.2 dev**
   for text-to-image and "combine these photos" edits, all offline
+- **A local agent (added November 2026):** an unprivileged container with a host-side firewall, narrow tools instead of
+  credentials, an independent reviewer, one watch engine for every periodic check, one sign-in for everything
 
 It isn't fast at AI -- the GPU is roughly mid-range -- but it can *hold* models that no consumer
 graphics card can, and at 2026 memory prices nothing we could find matches it for the money
@@ -24,7 +26,7 @@ graphics card can, and at 2026 memory prices nothing we could find matches it fo
 |---|---|
 | [MISTAKES.md](MISTAKES.md) | What went wrong during the build, including the times it broke things, and the lesson from each |
 | [GOTCHAS.md](GOTCHAS.md) | The traps that cost the most time, one line each. Read this even if you read nothing else |
-| [GUIDE.md](GUIDE.md) | The full guide: hardware, build order, AI stack, DNS/SSO, fans, backups, monitoring, updates, break-glass |
+| [GUIDE.md](GUIDE.md) | The full guide: hardware, build order, AI stack, DNS/SSO, fans and sustained-load temperatures, backups, monitoring, updates, break-glass; since November 2026 also the watch engine, a safe local agent, the prompt cache on hybrid models, one sign-in for everything, and update gates (sections 15-19) |
 | [VALUE.md](VALUE.md) | What else you could buy for equivalent storage + AI, with September 2026 prices |
 | [scripts/](scripts/) | Reusable pieces: GPU "baton" watcher, host memory guard, break-glass admin setup, ComfyUI compose |
 | [workflows/](workflows/) | ComfyUI API-format workflows for FLUX.2 text-to-image and two-reference-photo composition |

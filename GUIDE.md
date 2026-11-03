@@ -461,3 +461,127 @@ A staged test (`scripts/dns-stress.py`: 4 s per stage, plus a "household canary"
 The busiest second in three and a half days of the household's logs was 129 queries, mostly cached. The
 lesson is the rate limit, not the capacity: check `ratelimit` in `AdGuardHome.yaml` before blaming the
 network for random failures.
+
+## 15. One watch engine for every periodic check (added November 2026)
+
+By late October the box had about a dozen separate check scripts, each with its own timer, its own probe, its own
+way of raising an alert and its own pause file. They had all been written after an incident, and none had ever been
+compared with the others. The fix was one engine, using software that was already installed:
+
+- **One register, one handler.** Netdata's `scripts.d` runner (the Nagios plugin API) holds a single file that lists
+  every check: name, program, interval, retry interval and `max_check_attempts`. A check is a small program that
+  prints one line and exits 0/1/2/3. An optional `fix/NAME` program repairs it. Netdata's own alarms call one handler
+  that clears the alert when the check passes, runs the fix at most N times a day after a cooldown, and otherwise raises
+  the one alert with the check's own repair text. One pause file stops everything. Adding a check means one program and
+  one register entry, never a new timer.
+- **Retry before you ring.** A check that fails once because of a network blip and passes at its next run must never
+  reach a person. Two layers: the job itself retries its connection (three tries, 10 s then 30 s, network errors only;
+  never repeat a send, never retry a refused login), and the engine needs several failed checks in a row. For a unit
+  that a 5-minute timer starts, six one-minute checks means a failure has outlived the next scheduled run.
+- **A lasting condition cancels its own alert.** Every sender of a "condition" alert (temperature, a failing check,
+  battery) also sends the clear in the same script. Only one-off events (an OOM kill) need no clear.
+- **Do not alarm on first contact.** Debounce flickers: a UPS that transfers to battery for 5-10 seconds six times a
+  day should not chime six times a day. Delay only the notice, never a low-battery or shutdown event.
+- **Test the alert path as the user it really runs as.** The UPS monitor starts its notify script as an unprivileged
+  user; log rotation had recreated that script's log file as root-owned, the redirect failed, bash ran nothing, and the
+  script exited 0. No UPS alert was sent for 18 days, with 204 transfers in 33 days. The fix: the script elevates itself
+  through a one-rule sudoers entry and logs a failed elevation to the journal; a check now proves the path end to end.
+- **Every temporary thing has an expiry.** One-off ZFS snapshots named "pre-update" sat for five weeks and were 90 percent
+  of the reclaimable space (362 GiB). Snapshots keep deleted files alive. Every checkpoint, copy, test object and mute is
+  created with an expiry rule or a dated "keep"; deletions are code that fails safe (an incomplete probe removes nothing,
+  too many removals stops the run, an unreadable keep stops the run), tested by hand in a sandbox before it is trusted. A
+  small local model may *extend* what a person still needs, never delete.
+- **Backup sweeps ask the hypervisor where to look.** A hand-kept folder list missed 450 stray `.bak` copies; a pattern
+  of three paths missed 70 more; asking Proxmox which volumes belong to guests found them all. Names follow
+  `NAME.YYYYMMDD-HHMM-reason.bak`, and configuration also lives in a git repository (`/etc`, local scripts) so history is
+  not a pile of copies.
+
+## 16. A local AI agent on the box, kept on a short leash (added November 2026)
+
+The box also runs a general-purpose local agent (OpenClaw, with `qwen3.8:27b` on the iGPU) that can browse, research,
+file records and write e-mail for the household. What made it safe enough to leave running:
+
+- **Its own unprivileged container, filtered by the host.** The container's network rules live in an nftables bridge
+  table on the *host* (matched on the container's veth), so nothing inside can change them. LAN access is an
+  allow-list of destinations (the model server, the alert webhook, DNS); the hypervisor's web page and SSH are closed
+  to it; the Internet side is web ports only, no private ranges, no outgoing mail. Gotchas: a chain called `fwd` is
+  reserved, a bridge filter must sit after connection tracking (priority -100) or replies are dropped, and the host's own
+  services need a separate input hook. Inbound ports can be restricted to one source (`PORT@ADDRESS`), which is how the
+  agent's control page is reachable only through the single-sign-on proxy.
+- **Credentials and sending stay on the host.** The agent has no mail password, no vault key and no route to a mail
+  server. It uses narrow tools over the Model Context Protocol (one tiny server per capability, one shared protocol
+  loop) that drop a small JSON request into a folder; a host program validates it as untrusted data, asks the local model
+  for a privacy judgement, and either sends or holds the item for a human tap on a one-use approval page. The tools are:
+  send, withdraw (cancel one's own waiting draft), read, plus the records tools. An agent that can only *ask* is far
+  easier to reason about than one that holds the key.
+- **An independent reviewer for self-modification.** A plugin hook sends every change the agent proposes to its own
+  long-term guidance (memory, persona files, skills) to a fresh call of the same model with strict rules; allow, deny, or
+  ask a human, and any reviewer failure means a human decides. Deleting skills is blocked in code, and new skills are
+  rate-limited per day. Check which files the reviewer covers: the agent edited its own persona file once
+  without review because the path list did not include it.
+- **A gate on outward actions only.** Browser clicks that could submit something go through an approval gate; reading
+  and navigating (Next, page numbers, filters) are not gated and the instructions must say so, or the agent treats every
+  button as forbidden.
+- **Principles, not edge-case rules.** When the agent erred, adding a case to its instructions never generalised.
+  A sentence of principle plus at most one generic tool did. Mechanical gates are for irreversible or outward acts.
+- **Long jobs must survive.** A no-model automation restarts a job whose notes say "in progress" (limits on restarts and
+  age, a pause file); the agent keeps notes with a status line; a watch check flags a run that is silent too long or loops.
+- **Choose models by reliability first.** The bake-off ranked candidates on false-positive rate on privacy tests before
+  speed or style; a model with half the memory use matched the winner on reliability and still failed the privacy screen.
+  8-bit versus 4-bit of the same model showed no clear win, so production did not change. A model that "invents answers"
+  (a small model used for voice) was replaced by the 27B model with two generic read-only tools.
+
+## 17. Local models that are not plain transformers: the prompt cache (added November 2026)
+
+`qwen3.8:27b` is a *hybrid* model (recurrent layers plus attention). On this stack that changes how an agent loop performs:
+
+- A normal model reuses the cached prefix of the previous request. A hybrid model can only resume from **context
+  checkpoints** that llama.cpp saves about 5 and about 513 tokens before the end of the previous prompt. If a new request
+  differs from the last one earlier than that, the server prints `forcing full prompt re-processing due to lack of cache
+  data` and reads the whole prompt again: 79,000 tokens at about 205 tokens/s is 6 minutes 40 seconds per step. Steps whose
+  prefix is unchanged show `restored context checkpoint` and take 13-27 seconds.
+- OpenClaw 2026.10.9 rewrites user-message envelope fields (timestamp) and a runtime-context carrier on every request, which
+  breaks the prefix (gateway line `cache read dropped N -> 0 ... runtimeContextCarrier changed provider history`). There is
+  no configuration switch for native Ollama. It is an open upstream bug, openclaw/openclaw#182891, seen on several providers.
+- **What works today:** keep prompts small (reset or start long jobs in a fresh session; the first fix took a step from 6
+  minutes to 17-28 seconds), have the agent work in batches instead of one huge answer (1,165 lines in a single answer took
+  24 minutes), and look at the model server's log, not only the agent's. **What to try next:** denser llama.cpp checkpoints
+  (`LLAMA_ARG_CTX_CHECKPOINTS`, `LLAMA_ARG_CHECKPOINT_MIN_SPACING_NT`, if your Ollama build honours them) so a change near the end
+  costs hundreds of tokens, not the whole prompt. Mixed consumers of one model slot with different options also empty the
+  cache; give the prompt cache real RAM (`LLAMA_ARG_CACHE_RAM`).
+- The gateway's "stalled session" warning fires while the model is simply reading a long prompt; do not treat it as a hang
+  until the model server's log says nothing is being processed.
+
+## 18. One way to sign in, for everything (added November 2026)
+
+- **Rule: OIDC where the app supports it; the identity provider's forward auth only where it cannot; never a second
+  login of any other kind.** A person should meet the same sign-in page and the same session everywhere. A local
+  password stays only as the break-glass account and a token only as a service-to-service secret nobody types.
+- **Forward auth on a single-label private domain.** `.home` is not on the Public Suffix List, so browsers treat `home` itself
+  as a public suffix and drop a `Domain=home` cookie: domain-wide forward auth fails with a 400 and a redirect loop. Use the
+  provider's *single application* mode (a host-only cookie, no Domain attribute) or add a label (`n5.home`, `home.arpa`).
+  Probe it by calling the outpost's auth path with the app's Host header and reading the `Set-Cookie`.
+- **Apps that only know a shared token** (the agent's control UI) can sit behind the provider through the app's
+  trusted-proxy mode: the proxy authenticates, strips any client-sent identity header, forward-auths, and the app trusts
+  only the proxy's address. The app must not be reachable any other way (see the firewall above), and internal
+  clients that bypass the proxy (command-line tools, timers) need the app's local password.
+- **Caddy:** edit the Caddyfile *in place* (a `sed -i` creates a new inode that a single-file bind mount never sees) and use the
+  admin socket for a zero-downtime reload; an access log for one site is one `log` line and makes failed asset fetches visible.
+
+## 19. Updates with a gate and a rollback drill (added November 2026)
+
+- **A gate between the analyst and the executor.** An update routine that an AI helps with must be unable to do more than
+  its rights: a root-only validator with a fixed verb list, service names only from an allow-list file, strict JSON schema
+  for proposals, no "apply" verb, a pause file and a log. It was built so every intermediate state was inert, then
+  attacked with 39 hostile-input cases through the real chain (shell chaining, substitution, traversal, unknown service,
+  newline, oversize, bad JSON, unknown keys) before anything called it.
+- **`stack-apply`: checkpoint, whole-project down/up, verify, roll back.** Changing a Docker stack with a partial
+  `docker compose up -d SERVICE` can stop a sibling and drop a network alias. The tool snapshots, brings the *whole*
+  project down and up, checks health, the database alias and the real URLs, and rolls back by itself. It also mutes
+  the alert system for its own run and rings only on request.
+- **Drill the rollback.** A throwaway stack drove the real engine through a failing healthcheck, a missing image tag and a
+  good change. The drill found a defect no review had: a failed pull still took the stack down for 35 seconds before
+  rolling back. Now a failed pull stops nothing. The same drill target stays as the permanent test.
+- **Image notifiers hit rate limits.** Anonymous Docker Hub pulls return 429; floating-tag checks and update notifiers all
+  query the registry. Pin tags where you can and watch for failures.
+
