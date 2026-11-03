@@ -42,13 +42,13 @@ input_number:
 template:
   - select:
       # first the group (Clock, Emoji: Weather, ...); picking a group only fills the item list below
-      - name: Tittle group
+      - name: Tittle category
         unique_id: tittle_show
         options: "{{ (state_attr('sensor.tittle_modes', 'groups') or {}) | list }}"
         optimistic: true
         select_option: []
       # then the item; picking it shows it at once
-      - name: Tittle item
+      - name: Tittle category item
         unique_id: tittle_item
         options: "{{ (state_attr('sensor.tittle_modes', 'groups') or {}).get(states('select.tittle_show'), []) }}"
         optimistic: true

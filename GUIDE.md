@@ -299,6 +299,7 @@ timing better than about 15 s. Don't publish the recordings: the file name or ba
 can identify you.
 
 ---
+- **Hours of AI load run the whole case warm (measured 2026-11-03).** With a 27B-class model generating on the integrated GPU for hours in one continuous job, the sensors settled at: CPU Tctl about 82 C on average (peaks to about 91; it throttles itself near 100), GPU edge 78-82 C, the two network PHYs (the r8169 "mdio" sensors) 84-88 C, NVMe drives 32-39 C and the internal HDDs 39-41 C. Nothing alarmed. The network PHYs are the part furthest above their own idle baseline (idle about 60 C, short transfers 67-71 C, driver limit 110 C): they heat-soak with the case. The short load tests described above (GPU peak 59 C) do not predict a multi-hour job, so read the sensors during a long run, choose your own alarm threshold well below the 110 C driver limit, and expect the readings to fall within minutes once the job ends.
 
 ## 8. Backups and disaster recovery
 

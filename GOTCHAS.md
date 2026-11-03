@@ -51,3 +51,4 @@ One line each; details in [GUIDE.md](GUIDE.md).
 34. **RouterOS prints CRLF over SSH.** `[ "$x" -ge 1 ]` fails on `"4\r"`; strip with `tr -d '\r'`.
 35. **MAC deny lists in the Broadcom driver are runtime-only** and vanish at every wireless restart or reboot. If you use them to pin a device to one access point, re-apply from a timer, and release them automatically when the access point is down.
 36. **On a NIC whose driver clears TX checksum/TSO above MTU 1500 (RTL8127, r8169), jumbo frames cost the offloads.** Measure 1500 against 9000 before keeping mixed MTUs on one segment.
+37. **Hours of local AI inference heat-soak the network PHYs to about 88 C** (idle about 60 C, driver limit 110 C), with the CPU die near 82 C and the GPU near 80 C. It is not a fault, but it is a number to know before you set alarms: measure during a long run, not only during short load tests.
