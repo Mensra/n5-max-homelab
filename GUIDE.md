@@ -585,3 +585,42 @@ file records and write e-mail for the household. What made it safe enough to lea
 - **Image notifiers hit rate limits.** Anonymous Docker Hub pulls return 429; floating-tag checks and update notifiers all
   query the registry. Pin tags where you can and watch for failures.
 
+
+## 20. Logs: keep them by purpose, cap them by size, snapshot on error (added November 2026)
+
+- **Why.** One container log grew to 76 GB with no limit, a weekly log review timed out reading it, and a small root
+  filesystem had already filled once with unpruned task logs. Each was bounded only if someone remembered to cap it.
+- **Retention follows purpose.** Ask what each log is for. Error tracking: a short rolling ring; the errors are rare, so
+  capture the window when one happens (the monitoring engine already opens a case per new alert; copy the journal and
+  container-log window beside the case, bounded by count and age). Security and audit logs: months. Run records
+  (backups, watch events, update logs): small, rotated weekly or monthly. Metrics: the monitor's own tiers. Build logs and
+  configuration history: never pruned. Data that only looks like a log (debug pictures, packet captures): temporary, with an end date.
+- **One native rotator per kind, one policy.** Docker engine `log-opts` for container logs, `SystemMaxUse` for the
+  journal, logrotate (with a size trigger) for plain files, a tmpfiles age rule for directories that cannot be rotated.
+  The policy (age and size per class) lives in one editable file; nothing new is written to do the rotating.
+- **Measure what a log is made of first.** 78 percent of one log was access lines from our own temporary polling
+  script. Stopping the source beat enlarging the log.
+- **Audit growth, do not build a second predictor.** The monitor already predicts hours to full from the fill rate, but
+  it warns only in the last two days. A periodic audit takes growth per dataset from the ZFS snapshot history
+  (referenced size now minus the oldest snapshot, divided by its age), the container logs and the biggest directories.
+  Applications that update themselves leave step growth (a new runtime of 1.7 GB each time): keep the current and one
+  previous version.
+- **A supervising AI is one runner with a list of duties.** The same runner that judges repeated errors gets a
+  prose file of housekeeping duties (unclassified logs, stale temporary units, directories without an end date). Code
+  measures and enforces; the model only labels what has no rule yet, and its proposal is checked by code and installed
+  through the usual reversible install tool.
+
+## 21. Diagnosing an IP camera that hangs (added November 2026)
+
+- **Work out first which kind of failure it is.** Link lost on the switch port: power or cable. Link up and ARP still
+  answered but no ping, RTSP or web page: the network software hung. The host's ARP entry may be stale, so send a fresh
+  ARP request (arping) at the time of failure instead of trusting the cache.
+- **The camera's own log may not help.** On this end-of-life firmware the event log kept only logins, saved settings,
+  start-up and abort entries, and syslog streaming adds nothing to that. There was no setting for a debug level.
+- **Record its last packets from outside.** A rolling header-only capture of the camera's address on the host (128 bytes
+  per packet, a ring of 20 GB, about 15 GB a day for one 4 MP stream) lets you read the final packets after a failure:
+  sudden silence, a reset, a closed window, or unanswered ARP. Give the capture an end date.
+- **A power-cycle automation did not help.** An automatic five-minute cut at the switch port ran correctly, but the
+  first real cut did not recover the camera, so it was removed. Do not run protective-guard tests on the live camera.
+- **Re-entering settings by hand after a factory reset.** Read every setting the camera will give you into a sheet first
+  (account passwords are never readable), and note what the firmware resets at every boot (here: the video encode).

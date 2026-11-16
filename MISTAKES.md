@@ -112,3 +112,15 @@ the most useful part.
 29. **A retry loop that retried a refused login.** The first version of the mail retry helper retried a wrong-password error three times, because SMTP errors subclass OSError. Lesson: attack a retry helper with the failures you do *not* want retried.
 
 30. **Unreadable data was treated as zero.** A price field that could not be parsed counted as a zero price and would have filed junk under the free-items collection. Lesson: unparseable is its own class, never a default value; found by a hand attack on invented data.
+
+## Added November 2026 (second update)
+
+31. **Built a clock watch for a camera that had a time-sync setting I never enabled.** A daylight-saving change left its clock an hour off; I wrote a check, a fix and a register entry. The camera's own NTP setting was the answer. Lesson: look for the device's native function first; any duplication of one is approved before it is built.
+
+32. **A restore-to-defaults of a list of setting groups also cleared deliberate settings.** I reset 108 groups to clear a suspected corruption and lost the time-sync configuration. Lesson: read before and after for every group in the list, not only the one you care about.
+
+33. **Tested a protective guard on a live, fragile device.** Forcing its PoE port while it was running was followed by an outage. Lesson: test guards on a stand-in or not at all.
+
+34. **Left a temporary evidence recorder running for weeks with no end date.** It polled an API twice a second and produced most of another service's log. Lesson: every temporary thing gets an end date or an end condition when it is created.
+
+35. **Wrote a rule-based "what should be kept" answer before looking at what the log was for.** Retention numbers came from habit (a size cap) before the purpose of each log was considered. Lesson: decide by purpose first, then the number.
