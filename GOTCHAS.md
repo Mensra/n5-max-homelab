@@ -105,3 +105,14 @@ One line each; details in [GUIDE.md](GUIDE.md).
 85. **A Zigbee mesh far from its coordinator dropped commands until the transmit power was raised to 20 dBm.** Pick the channel by a spectral scan away from Wi-Fi, pin the network identity and keep backups so a coordinator swap needs no re-pairing.
 86. **After a kernel update that fixes a memory-manager bug, retest the old workaround.** The module option the workaround used may be replaced by a new knob; read the live values instead of assuming.
 87. **A supervising AI is one general duty-runner with its duties in a prose file, not one daemon per task.** Code should do the sizes and the pruning; the model only judges what nobody has classified.
+88. **A start-order problem is solved by probing readiness, not by a delay.** A list of "thing | needs | ready when" read by one tool serves systemd units, monitoring jobs and one-offs; a timer or an uptime guess breaks on the next slow boot.
+89. **systemd `ExecCondition` skips a run quietly.** Exit 1 to 254 from it is "skipped", not "failed": no degraded state, no alert, and the next scheduled run catches up.
+90. **Anonymous registry scans burn the pull limit.** Every lookup counts toward 100 an hour per address; scan once and retry failures after the window (HTTP 429).
+91. **`apt-get dist-upgrade` on a server needs a non-interactive frontend.** A changed config file made a package open a dialog nobody could answer and apt hung for twenty minutes.
+92. **A one-shot boot entry (`grub-reboot`) tests a new kernel with an automatic fallback.** Keep the saved default on the known-good one.
+93. **`systemctl reboot --firmware-setup` reaches the BIOS without a key press,** when the firmware reports support.
+94. **`cp -p` onto a device node copies the mode too.** One stray command made `/dev/null` unwritable for ordinary users; never give a copy a device or system path as target.
+95. **An agent's sandbox firewall is a feature.** Give it new abilities through the hand-off it already has (a request folder answered by the host), not by punching holes.
+96. **A readable plain-text credentials file defeats a vault.** Keep a deny list of such files for every tool that reads documents.
+97. **A device that transmits but ignores replies has a hung receive path.** A packet ring on the router port showed the camera asking for its gateway's address every second and ignoring every answer.
+98. **Take a snapshot of the root filesystem before upgrading the host.** A logical-volume snapshot is the rollback when there is no second copy of the boot disk.

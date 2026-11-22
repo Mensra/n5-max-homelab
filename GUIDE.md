@@ -624,3 +624,56 @@ file records and write e-mail for the household. What made it safe enough to lea
   first real cut did not recover the camera, so it was removed. Do not run protective-guard tests on the live camera.
 - **Re-entering settings by hand after a factory reset.** Read every setting the camera will give you into a sheet first
   (account passwords are never readable), and note what the firmware resets at every boot (here: the video encode).
+
+## 22. Start order and dependencies: one list, one tool (added November 2026)
+
+After a reboot a timer job that talks to the home-automation hub failed (the hub was not up yet) and left systemd reading "degraded". In the same boot a service restart that was meant to repair a GPU service ran while everything else was still starting, failed too, and cost ten minutes before the retry. Both are one class: software started before what it needs.
+
+**What did not work:** a delay ("not before N minutes of uptime"). A clock guesses; a slow or a fast boot defeats it.
+
+**What works:** ask whether the dependency is ready. One list, one line per thing: `thing | needs | ready when`. "Ready when" is a command that exits 0, or a built-in probe: systemd has finished starting, every guest set to autostart is running, no container of a guest is still starting. One small tool reads the list: `check` (never waits), `wait` (polls, with a patience), `apply`, `status`. Needs are followed transitively; a cycle, an unknown needed name or an empty list is an error, never a silent pass. Software that is not in the list has no needs and is never held back.
+
+Three consumers, no per-program code:
+1. A systemd service gets a drop-in with `ExecCondition=... check THING`. systemd then skips the run quietly (log line "Skipped due to exec-condition", exit 0, no failure, no "degraded"); the next scheduled run catches up.
+2. The one wrapper through which every monitoring job runs asks first and answers "OK, waiting for X" instead of judging a half-started box.
+3. A one-off that must run once, late, uses `wait`.
+
+Inside one Docker stack use the native `depends_on` with `condition: service_healthy`; Proxmox has its own guest start order (`startup: order=,up=`). Whether a dependency stays down is that dependency's own check's business: this routine only keeps others from starting early.
+
+Tests that mattered: a probe that hangs (20 s limit), shell metacharacters in a probe, a cycle, a missing list, `apply` run twice, `apply` must not touch a drop-in it did not write, and a real transient systemd unit proving that a skipped condition is not a failure.
+
+## 23. A read-only library of photos and documents for local AI tools (added November 2026)
+
+Goal: the local AI assistant and the chat front end can read the family photo library and the documents, read-only, and only one person can use it.
+
+- **One program on the host holds the only copy of the photo server's API key** and reads the datasets directly. The key was created with read permissions only (assets, albums, people, memories): a write returns 403.
+- **Two doors.** For the chat front end: HTTP with a bearer token AND a source-address allow-list; the tool inside the front end also checks the account, because admins see every tool and "private" is not enough. For the assistant in its sandboxed container: the request folder it already uses to ask the host for things. A new capability was one line in the list of request types plus a small tool server.
+- **Files:** every path is confined to its root with symlinks resolved; text, PDF and Word documents come back as text.
+- **A deny list** (a plain editable list) hides credential files. A plain-text password file readable by an agent defeats the vault.
+- **The vault of protected personal data** shows labels only; a value is released after a per-use approval on a page with a phone notification. The chat-front-end door never uses an "always allow" item.
+- **What I got wrong first:** I built it inside the assistant's container with read-only mounts, then found that container's own firewall (deliberate: DNS, the model server, the home-automation hub and the web only) blocks the photo server. Read the sandbox rules before designing; extend through the host, never punch holes in the sandbox.
+- **Web lookups:** a text search about what a picture shows is fine; a reverse image search (find public copies) means uploading the image to a third party. Say that out loud when scoping "look it up on the web": text leaves, images do not.
+
+## 24. Catching a camera that goes deaf: record the wire (added November 2026)
+
+Symptom: an IP camera drops off now and then; a power cycle fixes it; nothing in its own log says why. Plan: keep the last seconds of its traffic so the next failure leaves evidence.
+
+**Method:** the router that powers the camera has the camera on one port. Take that port out of hardware switching (so the router CPU sees its frames), run the router's packet sniffer filtered to that port, stream the headers to the server (TZSP over UDP) and keep a rolling ring in RAM (tcpdump with a size-limited file ring). The monitoring job that power-cycles the camera saves the ring to disk first. The whole thing is marked temporary with an expiry, and an `off` command restores the router's previous values. Do not mirror the port to the router CPU: that made the camera stop answering for about five minutes.
+
+**What the first real capture showed:** normal video traffic, then the camera asked for its gateway's address every second; the gateway answered each time within a millisecond, yet the camera asked again. It transmits but does not process what it receives; the cable and the power port were fine, the receive side of the device had hung.
+
+Two cheap extras: the camera's own event log (login, logout, start-up, abort, a heartbeat every ten minutes): a start-up preceded by an abort means an unclean end; and a web page left open for hours had its session ended in that log just as the camera went deaf (a correlation only; closing the page is the test).
+
+Router tip: its command line answers exit 0 even when a command is refused. Read every setting back.
+
+## 25. Updating a whole box in one sitting: what bit me (added November 2026)
+
+Order: inventory and gate every update (release age, holds), the critical security fix first, containers through a checkpointed tool (snapshot, whole-project down/up, health and alias checks, automatic rollback), packages per container with a snapshot, the host last with a logical-volume snapshot of the root filesystem as its rollback (`lvcreate -s`), and a new kernel installed but booted as a one-shot trial.
+
+- **Run apt on a server with `DEBIAN_FRONTEND=noninteractive` and `--force-confold`.** A changed configuration file made the bootloader package open a dialog nobody could answer and apt hung for twenty minutes. Recover by killing it and finishing with `dpkg --configure -a`.
+- **The registry's anonymous pull limit (100 an hour per address) counts every lookup.** Three full scans in a few minutes made five later pulls fail with HTTP 429. Scan once; retry the failures after the window.
+- **Held packages:** unhold, update, hold again. The pipeline's hold list is the policy; the apt hold is the guard.
+- **One-shot kernel trial:** `grub-reboot` once and keep the saved default on the known-good kernel; if the new one fails, the next boot falls back by itself. Clear the one-shot from the running system.
+- **BIOS without hammering a key:** `systemctl reboot --firmware-setup` (check the firmware reports support).
+- **A CPU-only fallback of a GPU service after boot** (its discovery timed out during the start-up storm) makes every fan scream. Let the monitoring job's own retry fix it; do not repeat the fix by hand.
+- **An update with no newer build** (here a camera firmware) is checked against the vendor's own list; the newest build can be the one you already run.

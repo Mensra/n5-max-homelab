@@ -124,3 +124,17 @@ the most useful part.
 34. **Left a temporary evidence recorder running for weeks with no end date.** It polled an API twice a second and produced most of another service's log. Lesson: every temporary thing gets an end date or an end condition when it is created.
 
 35. **Wrote a rule-based "what should be kept" answer before looking at what the log was for.** Retention numbers came from habit (a size cap) before the purpose of each log was considered. Lesson: decide by purpose first, then the number.
+
+## Added November 2026 (third update)
+
+36. **Ran a repair by hand two minutes before the monitoring engine's own retry.** It was already going to retry; mine only caused a second restart. Lesson: read the engine's cooldown and repeat schedule first and wait for its next try; step in only when it has given up.
+
+37. **Proposed "not before N minutes of uptime" where a readiness check was the answer.** Lesson: probe that everything is up; a clock is a guess.
+
+38. **Built a service inside a sandboxed container and found its firewall blocked it.** Lesson: read the sandbox rules before designing; extend through the host, never through a hole.
+
+39. **A stray `cp -p` onto `/dev/null` made it unwritable for ordinary users for about three minutes.** Lesson: no write command targets a device or system path; check failed units right after any slip.
+
+40. **Printed an incomplete "how to bring it back" list before a reboot and rebooted at once.** The host steps were there, the steps to get the assistant session back were not, and the session ended before the list was read. Lesson: the full standard list goes in its own message, then a pause, then the reboot.
+
+41. **Ran three full registry scans in a few minutes.** The anonymous pull limit then failed five later updates. Lesson: scan once, then reuse the result.

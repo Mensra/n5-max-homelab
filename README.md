@@ -26,7 +26,7 @@ graphics card can, and at 2026 memory prices nothing we could find matches it fo
 |---|---|
 | [MISTAKES.md](MISTAKES.md) | What went wrong during the build, including the times it broke things, and the lesson from each |
 | [GOTCHAS.md](GOTCHAS.md) | The traps that cost the most time, one line each. Read this even if you read nothing else |
-| [GUIDE.md](GUIDE.md) | The full guide: hardware, build order, AI stack, DNS/SSO, fans and sustained-load temperatures, backups, monitoring, updates, break-glass; since November 2026 also the watch engine, a safe local agent, the prompt cache on hybrid models, one sign-in for everything, and update gates (sections 15-19), and logs by purpose with a diagnosis routine for a hanging camera (sections 20-21) |
+| [GUIDE.md](GUIDE.md) | The full guide: hardware, build order, AI stack, DNS/SSO, fans and sustained-load temperatures, backups, monitoring, updates, break-glass; since November 2026 also the watch engine, a safe local agent, the prompt cache on hybrid models, one sign-in for everything, and update gates (sections 15-19), and logs by purpose with a diagnosis routine for a hanging camera (sections 20-21), start order by one readiness list, a read-only photo and document library for local AI tools, recording the wire of a camera that goes deaf, and a whole-box update routine (sections 22-25) |
 | [VALUE.md](VALUE.md) | What else you could buy for equivalent storage + AI, with September 2026 prices |
 | [scripts/](scripts/) | Reusable pieces: GPU "baton" watcher, host memory guard, break-glass admin setup, ComfyUI compose |
 | [workflows/](workflows/) | ComfyUI API-format workflows for FLUX.2 text-to-image and two-reference-photo composition |
